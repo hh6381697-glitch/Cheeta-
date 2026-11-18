@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>CHEETA</title>
+<style>
+  :root{
+    --cyan:#00f0ff;
+    --blue:#1e6bff;
+    --line:rgba(0,240,255,.25);
+    --text:#d7faff;
+    --dim:#6fa8b3;
+    --warn:#ffb347;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;background:#000;color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans Kannada",sans-serif;overflow:hidden}
+  body{display:flex;flex-direction:column;height:100dvh;
+    background:radial-gradient(ellipse at 50% 18%,#05253a 0%,#000 60%);
+    padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:40px 40px;opacity:.12;mask-image:radial-gradient(circle at 50% 20%,#000,transparent 75%);
+    -webkit-mask-image:radial-gradient(circle at 50% 20%,#000,transparent 75%)}
+
+  header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;z-index:2}
+  .brand{font-weight:700;letter-spacing:.45em;font-size:18px;color:var(--cyan);
+    text-shadow:0 0 12px var(--cyan),0 0 30px var(--blue)}
+  .controls{display:flex;gap:8px}
+  .chip{background:rgba(0,240,255,.06);border:1px solid var(--line);color:var(--cyan);
+    border-radius:20px;padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit;
+    transition:.2s;white-space:nowrap}
+  .chip:active{transform:scale(.95)}
+  .chip.on{background:rgba(0,240,255,.18);box-shadow:0 0 12px rgba(0,240,255,.5)}
+
+  /* ===== AI CORE ===== */
+  .core-wrap{display:flex;flex-direction:column;align-items:center;padding:6px 0 4px;z-index:1}
+  .core{position:relative;width:min(44vw,190px);aspect-ratio:1;display:grid;place-items:center}
+  @media (max-height:640px){.core{width:110px}}
+  .ring{position:absolute;border-radius:50%;border:2px solid transparent}
+  .r1{inset:0;border-top-color:var(--cyan);border-bottom-color:var(--blue);
+    box-shadow:0 0 18px rgba(0,240,255,.5),inset 0 0 18px rgba(0,240,255,.25);animation:spin 8s linear infinite}
+  .r2{inset:11%;border-left-color:var(--cyan);border-right-color:var(--blue);
+    animation:spin 5s linear infinite reverse}
+  .r3{inset:22%;border:2px dashed rgba(0,240,255,.55);animation:spin 14s linear infinite}
+  .orb{width:38%;aspect-ratio:1;border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#fff 0%,var(--cyan) 28%,var(--blue) 70%,#021 100%);
+    box-shadow:0 0 30px var(--cyan),0 0 70px var(--blue);animation:breathe 3.2s ease-in-out infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes breathe{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.1);opacity:1}}
+  @keyframes listen{0%,100%{transform:scale(1)}50%{transform:scale(1.35)}}
+  @keyframes speak{0%,100%{transform:scale(1)}25%{transform:scale(1.18)}50%{transform:scale(.95)}75%{transform:scale(1.25)}}
+
+  body[data-state="listening"] .orb{animation:listen .9s ease-in-out infinite;
+    background:radial-gradient(circle at 35% 30%,#fff,#3dffb0 30%,var(--cyan) 70%,#021)}
+  body[data-state="listening"] .r1{box-shadow:0 0 30px #3dffb0}
+  body[data-state="thinking"] .r1{animation-duration:1.2s}
+  body[data-state="thinking"] .r2{animation-duration:.9s}
+  body[data-state="thinking"] .r3{animation-duration:2.5s}
+  body[data-state="thinking"] .orb{animation:breathe .8s ease-in-out infinite;
+    background:radial-gradient(circle at 35% 30%,#fff,#9ab8ff 30%,var(--blue) 70%,#021)}
+  body[data-state="speaking"] .orb{animation:speak .55s ease-in-out infinite}
+
+  .status{margin-top:8px;font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:var(--cyan);
+    text-shadow:0 0 8px var(--cyan);min-height:16px}
+  .notice{font-size:12px;color:var(--dim);text-align:center;padding:2px 20px;min-height:16px;line-height:1.35}
+  .notice.err{color:var(--warn);text-shadow:0 0 8px rgba(255,179,71,.5)}
+
+  /* ===== CHAT ===== */
+  #chat{flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:10px;
+    scroll-behavior:smooth;z-index:1}
+  #chat::-webkit-scrollbar{width:4px}
+  #chat::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+  .msg{max-width:84%;padding:10px 14px;border-radius:14px;font-size:15px;line-height:1.45;
+    word-wrap:break-word;white-space:pre-wrap;animation:pop .25s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .msg.ai{align-self:flex-start;background:rgba(0,240,255,.07);border:1px solid var(--line);
+    box-shadow:0 0 14px rgba(0,240,255,.08)}
+  .msg.user{align-self:flex-end;background:linear-gradient(135deg,rgba(30,107,255,.35),rgba(0,240,255,.2));
+    border:1px solid rgba(30,107,255,.6)}
+  .msg.sys{align-self:center;background:none;border:1px dashed var(--line);color:var(--dim);
+    font-size:12.5px;text-align:center}
+
+  /* ===== QUICK COMMANDS ===== */
+  .chips{display:flex;gap:8px;overflow-x:auto;padding:6px 12px 2px;z-index:2;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+
+  /* ===== INPUT BAR ===== */
+  .bar{display:flex;gap:8px;align-items:center;padding:8px 12px 14px;z-index:2;background:rgba(0,0,0,.6);
+    backdrop-filter:blur(8px)}
+  #input{flex:1;min-width:0;background:rgba(0,240,255,.05);border:1px solid var(--line);
+    color:var(--text);border-radius:24px;padding:12px 16px;font-size:16px;outline:none;font-family:inherit}
+  #input:focus{border-color:var(--cyan);box-shadow:0 0 12px rgba(0,240,255,.35)}
+  #input::placeholder{color:var(--dim)}
+  .btn{width:46px;height:46px;flex:none;border-radius:50%;border:1px solid var(--cyan);
+    background:rgba(0,240,255,.08);color:var(--cyan);display:grid;place-items:center;cursor:pointer;
+    box-shadow:0 0 12px rgba(0,240,255,.3);transition:.2s}
+  .btn:active{transform:scale(.92)}
+  .btn svg{width:22px;height:22px;fill:currentColor}
+  #mic.active{background:var(--cyan);color:#000;box-shadow:0 0 24px var(--cyan);animation:listen 1s infinite}
+</style>
+</head>
+<body data-state="idle">
+
+<header>
+  <div class="brand">CHEETA</div>
+  <div class="controls">
+    <button class="chip" id="langBtn" aria-label="Change language">English</button>
+    <button class="chip on" id="voiceBtn" aria-label="Toggle voice replies">🔊 Voice</button>
+  </div>
+</header>
+
+<div class="core-wrap">
+  <div class="core">
+    <div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div>
+    <div class="orb"></div>
+  </div>
+  <div class="status" id="status">Online</div>
+  <div class="notice" id="notice"></div>
+</div>
+
+<div id="chat" aria-live="polite"></div>
+
+<div class="chips" id="chips"></div>
+
+<form class="bar" id="form" autocomplete="off">
+  <button type="button" class="btn" id="mic" aria-label="Microphone">
+    <svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11z"/></svg>
+  </button>
+  <input id="input" type="text" placeholder="Type a message..." enterkeyhint="send">
+  <button type="submit" class="btn" aria-label="Send">
+    <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+  </button>
+</form>
+
+<script>
+/* =========================================================
+   CHEETA v2 – frontend prototype
+   Works with NO paid API key:
+     - voice input (browser speech recognition)
+     - voice output (browser text-to-speech)
+     - calculator, date and time commands (run on your phone)
+   There is still NO real AI chat. See getAIResponse() for the
+   place where a secure backend can be added later.
+   ========================================================= */
+
+/* ---------- Language settings ---------- */
+const LANGS = {
+  en: { label:"English", speech:"en-IN", placeholder:"Type or tap the mic...",
+        hello:"Hello, I am CHEETA. I can do calculations, tell the date and time, and speak replies. Say \"help\" to see examples. My full AI brain is not connected yet.",
+        listening:"Listening", thinking:"Thinking", speaking:"Speaking", online:"Online",
+        voiceOn:"🔊 Voice", voiceOff:"🔇 Muted",
+        speakNow:"Speak now…",
+        chips:["What time is it?","Today's date","12 times 8","Help"] },
+  kn: { label:"ಕನ್ನಡ", speech:"kn-IN", placeholder:"ಟೈಪ್ ಮಾಡಿ ಅಥವಾ ಮೈಕ್ ಒತ್ತಿ...",
+        hello:"ನಮಸ್ಕಾರ, ನಾನು ಚೀತಾ. ನಾನು ಲೆಕ್ಕ ಮಾಡಬಲ್ಲೆ, ಸಮಯ ಮತ್ತು ದಿನಾಂಕ ಹೇಳಬಲ್ಲೆ. ಉದಾಹರಣೆಗಳಿಗೆ \"ಸಹಾಯ\" ಎಂದು ಹೇಳಿ. ನನ್ನ ಪೂರ್ಣ AI ಇನ್ನೂ ಸಂಪರ್ಕಗೊಂಡಿಲ್ಲ.",
+        listening:"ಆಲಿಸುತ್ತಿದೆ", thinking:"ಯೋಚಿಸುತ್ತಿದೆ", speaking:"ಮಾತನಾಡುತ್ತಿದೆ", online:"ಸಿದ್ಧ",
+        voiceOn:"🔊 ಧ್ವನಿ", voiceOff:"🔇 ಮೌನ",
+        speakNow:"ಈಗ ಮಾತನಾಡಿ…",
+        chips:["ಈಗ ಸಮಯ ಎಷ್ಟು?","ಇಂದಿನ ದಿನಾಂಕ","12 ಗುಣಿಸಿ 8","ಸಹಾಯ"] }
+};
+
+/* ---------- Saved settings ---------- */
+function load(k, d){ try{ const v = localStorage.getItem(k); return v === null ? d : v; }catch(e){ return d; } }
+function save(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+let lang = load("cheeta_lang", "en"); if (!LANGS[lang]) lang = "en";
+let voiceOn = load("cheeta_voice", "1") === "1";
+
+/* ---------- Elements ---------- */
+const $ = id => document.getElementById(id);
+const chat = $("chat"), input = $("input"), statusEl = $("status"), noticeEl = $("notice");
+const micBtn = $("mic"), langBtn = $("langBtn"), voiceBtn = $("voiceBtn"), chipsEl = $("chips");
+
+/* ---------- UI helpers ---------- */
+function setState(state){
+  document.body.dataset.state = state;
+  const L = LANGS[lang];
+  statusEl.textContent = ({idle:L.online, listening:L.listening, thinking:L.thinking, speaking:L.speaking})[state] || L.online;
+}
+function addMsg(text, who){
+  const d = document.createElement("div");
+  d.className = "msg " + who;
+  d.textContent = text;            // textContent = safe from injected HTML
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+}
+let noticeTimer = null;
+function notice(text, isErr){
+  noticeEl.textContent = text || "";
+  noticeEl.className = "notice" + (isErr ? " err" : "");
+  clearTimeout(noticeTimer);
+  if (text && isErr) noticeTimer = setTimeout(() => { noticeEl.textContent = ""; noticeEl.className = "notice"; }, 14000);
+}
+const delay = ms => new Promise(r => setTimeout(r, ms));
+const T = (en, kn) => lang === "kn" ? kn : en;   // pick text by current language
+
+/* =========================================================
+   LOCAL COMMANDS (no internet, no API key)
+   ========================================================= */
+
+/* ----- Date & time ----- */
+function fmt(locale, opts, d){
+  try{ return d.toLocaleString(locale, opts); }catch(e){ return d.toLocaleString("en-IN", opts); }
+}
+function timeText(l, d){ return fmt(l === "kn" ? "kn-IN" : "en-IN", {hour:"numeric", minute:"2-digit", hour12:true}, d); }
+function dateText(l, d){ return fmt(l === "kn" ? "kn-IN" : "en-IN", {weekday:"long", day:"numeric", month:"long", year:"numeric"}, d); }
+
+/* ----- Calculator: converts words/symbols to a plain math expression ----- */
+const EN_UNITS = {zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,
+  thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,
+  twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90};
+function wordsToNumbers(s){
+  const out = []; let total = 0, cur = 0, has = false;
+  const flush = () => { if (has){ out.push(String(total + cur)); total = 0; cur = 0; has = false; } };
+  for (const t of s.split(/\s+/)){
+    if (t in EN_UNITS){ cur += EN_UNITS[t]; has = true; }
+    else if (t === "hundred"){ cur = (cur || 1) * 100; has = true; }
+    else if (t === "thousand"){ total += (cur || 1) * 1000; cur = 0; has = true; }
+    else { flush(); out.push(t); }
+  }
+  flush();
+  return out.join(" ");
+}
+const KN_NUMBERS = [["ಸೊನ್ನೆ",0],["ಒಂದು",1],["ಎರಡು",2],["ಮೂರು",3],["ನಾಲ್ಕು",4],["ಐದು",5],["ಆರು",6],["ಏಳು",7],
+  ["ಎಂಟು",8],["ಒಂಬತ್ತು",9],["ಹತ್ತು",10],["ಹದಿನೈದು",15],["ಇಪ್ಪತ್ತು",20],["ಮೂವತ್ತು",30],["ನಲವತ್ತು",40],
+  ["ಐವತ್ತು",50],["ನೂರು",100]];
+const KN_OPS = [
+  [["ಪ್ಲಸ್","ಕೂಡಿಸಿ","ಕೂಡಿಸು","ಸೇರಿಸಿ","ಸೇರಿಸು","ಜೊತೆಗೆ"], "+"],
+  [["ಮೈನಸ್","ಕಳೆದು","ಕಳೆಯಿರಿ","ಕಳೆ"], "-"],
+  [["ಗುಣಿಸಿ","ಗುಣಿಸು","ಗುಣಾಕಾರ","ಟೈಮ್ಸ್"], "*"],
+  [["ಭಾಗಿಸಿ","ಭಾಗಿಸು","ಭಾಗಾಕಾರ","ಡಿವೈಡ್"], "/"]
+];
+function normalizeMath(raw){
+  let s = raw.toLowerCase();
+  s = s.replace(/[೦-೯]/g, d => String(d.charCodeAt(0) - 0x0CE6));          // Kannada digits -> 0-9
+  for (const [words, sym] of KN_OPS) for (const w of words) s = s.split(w).join(" " + sym + " ");
+  for (const [w, n] of KN_NUMBERS) s = s.split(w).join(" " + n + " ");
+  s = s.replace(/×/g, "*").replace(/÷/g, "/").replace(/[−–—]/g, "-");
+  s = s.replace(/(\d),(?=\d{3})/g, "$1");                                    // 1,000 -> 1000
+  s = s.replace(/([a-z])-([a-z])/g, "$1 $2");                                // twenty-one -> twenty one
+  s = wordsToNumbers(s);
+  s = s.replace(/(\d+(?:\.\d+)?)\s*(?:%|percent|per cent)\s*of\s*/g, "($1/100)*");
+  s = s.replace(/(?:square root of|sqrt of|sqrt)\s*(\d+(?:\.\d+)?)/g, "($1^0.5)");
+  s = s.replace(/(\d+(?:\.\d+)?)\s*squared/g, "($1^2)");
+  s = s.replace(/(\d+(?:\.\d+)?)\s*cubed/g, "($1^3)");
+  s = s.replace(/\bto the power of\b|\braised to\b|\bpower\b/g, " ^ ");
+  s = s.replace(/\bmultiplied by\b|\bmultiply by\b|\btimes\b|\binto\b/g, " * ");
+  s = s.replace(/(\d)\s*x\s*(?=[\d(])/g, "$1 * ");
+  s = s.replace(/\bdivided by\b|\bdivide by\b|\bover\b/g, " / ");
+  s = s.replace(/\bplus\b/g, " + ");
+  s = s.replace(/\bminus\b|\bsubtract\b|\bless\b/g, " - ");
+  s = s.replace(/\bmodulo\b|\bmod\b/g, " % ");
+  return s;
+}
+/* Safe math parser (does NOT use eval) */
+function evaluate(expr){
+  const clean = expr.replace(/\s+/g, "");
+  const tokens = clean.match(/\d+\.?\d*|\.\d+|[+\-*/^%()]/g);
+  if (!tokens || tokens.join("") !== clean) throw new Error("SYNTAX");
+  let pos = 0;
+  const peek = () => tokens[pos];
+  function parseExpr(){
+    let v = parseTerm();
+    while (peek() === "+" || peek() === "-"){ const op = tokens[pos++]; const r = parseTerm(); v = op === "+" ? v + r : v - r; }
+    return v;
+  }
+  function parseTerm(){
+    let v = parseUnary();
+    while (peek() === "*" || peek() === "/" || peek() === "%"){
+      const op = tokens[pos++]; const r = parseUnary();
+      if (op === "*") v *= r;
+      else { if (r === 0) throw new Error("DIV0"); v = op === "/" ? v / r : v % r; }
+    }
+    return v;
+  }
+  function parseUnary(){
+    if (peek() === "-"){ pos++; return -parseUnary(); }
+    if (peek() === "+"){ pos++; return parseUnary(); }
+    return parsePower();
+  }
+  function parsePower(){
+    const b = parsePrimary();
+    if (peek() === "^"){ pos++; return Math.pow(b, parseUnary()); }
+    return b;
+  }
+  function parsePrimary(){
+    const t = tokens[pos++];
+    if (t === undefined) throw new Error("SYNTAX");
+    if (t === "("){ const v = parseExpr(); if (tokens[pos++] !== ")") throw new Error("SYNTAX"); return v; }
+    if (/^[\d.]/.test(t)){ const n = parseFloat(t); if (isNaN(n)) throw new Error("SYNTAX"); return n; }
+    throw new Error("SYNTAX");
+  }
+  const v = parseExpr();
+  if (pos !== tokens.length) throw new Error("SYNTAX");
+  return v;
+}
+function spokenExpr(e){
+  return e.replace(/\*/g," times ").replace(/\//g," divided by ").replace(/\+/g," plus ")
+          .replace(/-/g," minus ").replace(/\^/g," to the power of ").replace(/%/g," mod ").replace(/\s+/g," ").trim();
+}
+function tryCalculator(raw, l){
+  const lower = raw.toLowerCase();
+  const strongKw = /calculat|compute|solve|evaluate|ಲೆಕ್ಕ/.test(lower);
+  const weakKw = strongKw || /what is|what's|whats|how much|ಎಷ್ಟು/.test(lower);
+  const s = normalizeMath(raw);
+
+  const cands = s.match(/[-\d.(][\d.\s()+\-*/^%]*/g) || [];
+  let best = "";
+  for (const c of cands){
+    const t = c.replace(/[\s.+\-*/^]+$/, "").trim();
+    if (/\d/.test(t) && t.length > best.length) best = t;
+  }
+  const hasOp = /\d\s*[)]?\s*[+\-*/^%]\s*[-(\d.]/.test(best);
+
+  if (!best || !hasOp){
+    if (strongKw || /\d/.test(s) && weakKw && /\b(plus|minus|times|divided|multipl)/.test(lower))
+      return {text: l === "kn"
+        ? "ಲೆಕ್ಕ ಅರ್ಥವಾಗಲಿಲ್ಲ. ಹೀಗೆ ಹೇಳಿ: \"12 ಗುಣಿಸಿ 5\" ಅಥವಾ \"25 + 17\"."
+        : "I couldn't find a calculation in that. Try: \"calculate 12 times 5\" or \"25 + 17\"."};
+    return null;
+  }
+  // without a calculator word, only treat the message as math if it is *only* math
+  const leftover = s.replace(best, "");
+  if (!weakKw && /[a-z\u0C80-\u0CFF]/i.test(leftover)) return null;
+
+  try{
+    const v = evaluate(best);
+    if (!isFinite(v)) throw new Error("BIG");
+    const r = parseFloat(v.toPrecision(12));
+    const shown = r.toLocaleString("en-IN", {maximumFractionDigits:10});
+    const pretty = best.replace(/\*/g,"×").replace(/\//g,"÷").replace(/\s+/g," ");
+    if (l === "kn") return {text: pretty + " = " + shown, speech: "ಉತ್ತರ " + String(r)};
+    return {text: pretty + " = " + shown, speech: spokenExpr(best) + " equals " + String(r)};
+  }catch(e){
+    if (e.message === "DIV0") return {text: l === "kn" ? "ಸೊನ್ನೆಯಿಂದ ಭಾಗಿಸಲು ಸಾಧ್ಯವಿಲ್ಲ." : "I can't divide by zero."};
+    if (e.message === "BIG")  return {text: l === "kn" ? "ಈ ಸಂಖ್ಯೆ ತುಂಬಾ ದೊಡ್ಡದು." : "That number is too big for me."};
+    return {text: l === "kn"
+      ? "ಈ ಲೆಕ್ಕ ಅರ್ಥವಾಗಲಿಲ್ಲ. ಹೀಗೆ ಹೇಳಿ: \"12 ಗುಣಿಸಿ 5\"."
+      : "I couldn't understand that calculation. Try: \"calculate 12 times 5\"."};
+  }
+}
+
+/* ----- Main local command router ----- */
+function tryLocalCommands(raw, l){
+  const s = raw.toLowerCase().trim();
+
+  if (/\b(clear|reset|delete)\b.*\b(chat|screen|messages)\b|ಚಾಟ್ ಅಳಿಸ/.test(s))
+    return {text: l === "kn" ? "ಚಾಟ್ ಅಳಿಸಲಾಗಿದೆ." : "Chat cleared.", action:"clear"};
+
+  if (/\bhelp\b|what can you do|ಸಹಾಯ|ಏನು ಮಾಡಬಲ್ಲ/.test(s))
+    return {text: l === "kn"
+      ? "AI ಇಲ್ಲದೆ ನಾನು ಇವುಗಳನ್ನು ಮಾಡಬಲ್ಲೆ:\n• ಲೆಕ್ಕ: \"12 ಗುಣಿಸಿ 5\" ಅಥವಾ \"25 + 17\"\n• ಸಮಯ: \"ಈಗ ಸಮಯ ಎಷ್ಟು\"\n• ದಿನಾಂಕ: \"ಇಂದಿನ ದಿನಾಂಕ\"\n• \"ಚಾಟ್ ಅಳಿಸು\" ಎಂದರೆ ಚಾಟ್ ಖಾಲಿ ಆಗುತ್ತದೆ."
+      : "Without AI, I can do these:\n• Math: \"12 times 5\", \"25 + 17\", \"20 percent of 150\", \"square root of 144\"\n• Time: \"what time is it\"\n• Date: \"today's date\"\n• \"clear chat\" empties the screen."};
+
+  if (/who are you|your name|what are you|ನೀನು ಯಾರು|ನೀವು ಯಾರು|ಹೆಸರು/.test(s))
+    return {text: l === "kn"
+      ? "ನಾನು ಚೀತಾ, ನಿಮ್ಮ ಪ್ರಾಯೋಗಿಕ ಸಹಾಯಕ. ಈಗ ಲೆಕ್ಕ, ಸಮಯ ಮತ್ತು ದಿನಾಂಕದಲ್ಲಿ ಮಾತ್ರ ಸಹಾಯ ಮಾಡಬಲ್ಲೆ."
+      : "I am CHEETA, your prototype assistant. Right now I can only help with math, time and date."};
+
+  // date & time (checked before the calculator so "times" in math is not confused)
+  const wantTime = /\b(time|clock)\b|ಸಮಯ|ಗಂಟೆ/.test(s);
+  const wantDate = /\b(date|today|day|month|year)\b|ದಿನಾಂಕ|ತಾರೀಖು|ಇಂದ|ಯಾವ ದಿನ|ವಾರ/.test(s);
+  if (wantTime || wantDate){
+    const d = new Date();
+    if (wantTime && wantDate)
+      return {text: l === "kn"
+        ? "ಇಂದಿನ ದಿನಾಂಕ: " + dateText(l, d) + "\nಈಗಿನ ಸಮಯ: " + timeText(l, d)
+        : "Today is " + dateText(l, d) + ".\nThe time is " + timeText(l, d) + "."};
+    if (wantTime)
+      return {text: l === "kn" ? "ಈಗಿನ ಸಮಯ: " + timeText(l, d) : "The time is " + timeText(l, d) + "."};
+    return {text: l === "kn" ? "ಇಂದಿನ ದಿನಾಂಕ: " + dateText(l, d) : "Today is " + dateText(l, d) + "."};
+  }
+
+  const calc = tryCalculator(raw, l);
+  if (calc) return calc;
+
+  if (/^(hi|hello|hey|namaste|good (morning|afternoon|evening))\b|^(ನಮಸ್ಕಾರ|ಹಲೋ|ಹಾಯ್)/.test(s))
+    return {text: l === "kn" ? "ನಮಸ್ಕಾರ! ನಾನು ಚೀತಾ. ಏನು ಸಹಾಯ ಮಾಡಲಿ?" : "Hello! I am CHEETA. How can I help?"};
+
+  return null;
+}
+
+/* =========================================================
+   >>> BACKEND PLACEHOLDER (FUTURE) <<<
+   Anything the local commands cannot answer ends up here.
+   Later you can replace the "not connected" message with a
+   call to YOUR OWN secure backend.
+
+   SECURITY RULES:
+   - NEVER put an AI API key in this file. Anyone can read it.
+   - Keep keys on a server (Cloudflare Worker, Vercel, Netlify
+     Function...). This page only talks to YOUR server.
+
+   Example for later (leave commented for now):
+
+   const BACKEND_URL = "https://YOUR-BACKEND.example.com/chat";
+   const res = await fetch(BACKEND_URL, {
+     method: "POST",
+     headers: { "Content-Type": "application/json" },
+     body: JSON.stringify({ message: userText, language: langCode, history: conversation })
+   });
+   if (!res.ok) throw new Error("Backend error " + res.status);
+   const data = await res.json();
+   return { text: data.reply };
+   ========================================================= */
+const conversation = [];   // chat history you can send to the backend later
+
+async function getAIResponse(userText, langCode){
+  const local = tryLocalCommands(userText, langCode);
+  if (local){ await delay(450); return local; }
+
+  await delay(700);
+  return {text: langCode === "kn"
+    ? "ಕ್ಷಮಿಸಿ, ಇದಕ್ಕೆ ಉತ್ತರಿಸಲು AI ಇನ್ನೂ ಸಂಪರ್ಕಗೊಂಡಿಲ್ಲ. ನಾನು ಲೆಕ್ಕ, ಸಮಯ ಮತ್ತು ದಿನಾಂಕ ಹೇಳಬಲ್ಲೆ. \"ಸಹಾಯ\" ಎಂದು ಹೇಳಿ."
+    : "Sorry, I can't answer that yet because no AI is connected. I can do math, time and date. Say \"help\" for examples."};
+}
+
+/* ---------- Send flow ---------- */
+let busy = false;
+async function handleSend(text){
+  text = (text || "").trim();
+  if (!text || busy) return;
+  busy = true;
+  stopSpeaking();
+  notice("");
+  addMsg(text, "user");
+  conversation.push({role:"user", content:text});
+  input.value = "";
+  setState("thinking");
+  try{
+    const reply = await getAIResponse(text, lang);
+    if (reply.action === "clear"){ chat.innerHTML = ""; conversation.length = 0; }
+    addMsg(reply.text, "ai");
+    conversation.push({role:"assistant", content:reply.text});
+    speak(reply.speech || reply.text);
+  }catch(e){
+    addMsg(T("Something went wrong: ", "ಏನೋ ತಪ್ಪಾಗಿದೆ: ") + (e && e.message ? e.message : e), "sys");
+    setState("idle");
+  }
+  busy = false;
+}
+$("form").addEventListener("submit", e => { e.preventDefault(); handleSend(input.value); });
+
+/* =========================================================
+   TEXT-TO-SPEECH
+   ========================================================= */
+const synth = window.speechSynthesis;
+let voices = [];
+function loadVoices(){ if (synth) voices = synth.getVoices() || []; }
+if (synth){ loadVoices(); synth.onvoiceschanged = loadVoices; }
+
+function pickVoice(code){
+  const want = LANGS[code].speech.toLowerCase();
+  return voices.find(v => v.lang.replace("_","-").toLowerCase() === want)
+      || voices.find(v => v.lang.toLowerCase().startsWith(code));
+}
+const KN_VOICE_HELP = "Kannada voice not found on this phone. Open Android Settings → Text-to-speech output → Google → Install voice data → Kannada. Then reload CHEETA.";
+function warnIfNoKannadaVoice(){
+  if (lang === "kn" && synth && voices.length > 0 && !pickVoice("kn"))
+    notice(KN_VOICE_HELP, true);
+}
+function speak(text){
+  if (!voiceOn){ setState("idle"); return; }
+  if (!synth || typeof SpeechSynthesisUtterance === "undefined"){
+    notice(T("Voice replies are not supported in this browser. Try Chrome on Android.",
+             "ಈ ಬ್ರೌಸರ್‌ನಲ್ಲಿ ಧ್ವನಿ ಉತ್ತರ ಬೆಂಬಲಿಸುವುದಿಲ್ಲ. Android ನಲ್ಲಿ Chrome ಬಳಸಿ."), true);
+    setState("idle"); return;
+  }
+  synth.cancel();
+  loadVoices();
+  const u = new SpeechSynthesisUtterance(String(text).replace(/\n+/g, ". ").replace(/[•]/g, ""));
+  u.lang = LANGS[lang].speech;
+  const v = pickVoice(lang);
+  if (v) u.voice = v; else warnIfNoKannadaVoice();
+  u.rate = 1; u.pitch = 1;
+  u.onstart = () => setState("speaking");
+  u.onend = () => setState("idle");
+  u.onerror = e => {
+    setState("idle");
+    const code = e && e.error;
+    if (code === "canceled" || code === "interrupted") return;
+    const map = {
+      "not-allowed": "The browser blocked voice output. Tap the screen once, then try again.",
+      "synthesis-unavailable": "No text-to-speech engine is available. Check Android Settings → Text-to-speech output.",
+      "synthesis-failed": "Voice output failed. Try again, or install voice data in Android Settings.",
+      "language-unavailable": "This language voice is not installed. Install it in Android Settings → Text-to-speech output.",
+      "voice-unavailable": "The selected voice is not available. Install voice data in Android Settings."
+    };
+    notice(map[code] || ("Voice output error" + (code ? ": " + code : ".")), true);
+  };
+  synth.speak(u);
+}
+function stopSpeaking(){ if (synth) synth.cancel(); }
+
+/* =========================================================
+   SPEECH RECOGNITION (voice input)
+   ========================================================= */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, listening = false;
+
+function micError(code){
+  const l = lang;
+  const m = {
+    "not-allowed": T("Microphone permission was denied. In Chrome tap the lock icon in the address bar → Permissions → allow Microphone, then reload.",
+                     "ಮೈಕ್ರೊಫೋನ್ ಅನುಮತಿ ನಿರಾಕರಿಸಲಾಗಿದೆ. Chrome ನಲ್ಲಿ ವಿಳಾಸ ಪಟ್ಟಿಯ ಲಾಕ್ ಐಕಾನ್ ಒತ್ತಿ → ಅನುಮತಿಗಳು → ಮೈಕ್ರೊಫೋನ್ ಅನುಮತಿಸಿ, ನಂತರ ಮರುಲೋಡ್ ಮಾಡಿ."),
+    "service-not-allowed": T("Voice recognition is blocked on this device. Check that Google voice typing is enabled in Android settings.",
+                     "ಈ ಸಾಧನದಲ್ಲಿ ಧ್ವನಿ ಗುರುತಿಸುವಿಕೆ ನಿರ್ಬಂಧಿತವಾಗಿದೆ. Android ಸೆಟ್ಟಿಂಗ್ಸ್‌ನಲ್ಲಿ Google ವಾಯ್ಸ್ ಟೈಪಿಂಗ್ ಆನ್ ಇದೆಯೇ ನೋಡಿ."),
+    "no-speech": T("I did not hear anything. Tap the mic, wait for \"Speak now\", then talk.",
+                   "ಏನೂ ಕೇಳಿಸಲಿಲ್ಲ. ಮೈಕ್ ಒತ್ತಿ, \"ಈಗ ಮಾತನಾಡಿ\" ಬಂದ ಮೇಲೆ ಮಾತನಾಡಿ."),
+    "audio-capture": T("No microphone found, or another app is using it. Close other apps that use the mic and try again.",
+                       "ಮೈಕ್ರೊಫೋನ್ ಸಿಗಲಿಲ್ಲ ಅಥವಾ ಬೇರೆ ಆಪ್ ಬಳಸುತ್ತಿದೆ. ಮೈಕ್ ಬಳಸುವ ಇತರ ಆಪ್‌ಗಳನ್ನು ಮುಚ್ಚಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ."),
+    "network": T("Voice input needs an internet connection. Check your data or Wi-Fi.",
+                 "ಧ್ವನಿ ಇನ್‌ಪುಟ್‌ಗೆ ಇಂಟರ್ನೆಟ್ ಬೇಕು. ಡೇಟಾ ಅಥವಾ Wi-Fi ಪರಿಶೀಲಿಸಿ."),
+    "language-not-supported": T("This language is not supported for voice input on your device. You can type instead.",
+                 "ನಿಮ್ಮ ಸಾಧನದಲ್ಲಿ ಈ ಭಾಷೆಗೆ ಧ್ವನಿ ಇನ್‌ಪುಟ್ ಬೆಂಬಲವಿಲ್ಲ. ಬದಲಿಗೆ ಟೈಪ್ ಮಾಡಿ."),
+    "aborted": ""
+  };
+  return code in m ? m[code] : T("Microphone error: ", "ಮೈಕ್ ದೋಷ: ") + code;
+}
+
+function startListening(){
+  if (!window.isSecureContext){
+    notice(T("The microphone only works on a secure (https) page. Open CHEETA from your GitHub Pages link, not from a file on your phone.",
+             "ಮೈಕ್ರೊಫೋನ್ ಸುರಕ್ಷಿತ (https) ಪುಟದಲ್ಲಿ ಮಾತ್ರ ಕೆಲಸ ಮಾಡುತ್ತದೆ. ಫೋನ್‌ನಲ್ಲಿರುವ ಫೈಲ್ ಬದಲು ನಿಮ್ಮ GitHub Pages ಲಿಂಕ್ ತೆರೆಯಿರಿ."), true);
+    return;
+  }
+  if (!SR){
+    notice(T("This browser does not support voice input. Please open CHEETA in Chrome on Android, or type your message.",
+             "ಈ ಬ್ರೌಸರ್ ಧ್ವನಿ ಇನ್‌ಪುಟ್ ಬೆಂಬಲಿಸುವುದಿಲ್ಲ. Android ನಲ್ಲಿ Chrome ಬಳಸಿ ಅಥವಾ ಟೈಪ್ ಮಾಡಿ."), true);
+    return;
+  }
+  if (navigator.onLine === false){
+    notice(T("You appear to be offline. Voice input needs internet.", "ನೀವು ಆಫ್‌ಲೈನ್ ಇದ್ದೀರಿ. ಧ್ವನಿ ಇನ್‌ಪುಟ್‌ಗೆ ಇಂಟರ್ನೆಟ್ ಬೇಕು."), true);
+    return;
+  }
+  if (busy) return;
+  stopSpeaking();
+  notice("");
+
+  rec = new SR();
+  rec.lang = LANGS[lang].speech;
+  rec.interimResults = true;
+  rec.continuous = false;
+  rec.maxAlternatives = 1;
+  let heard = "", failed = false;
+
+  rec.onstart = () => { listening = true; micBtn.classList.add("active"); setState("listening"); notice(LANGS[lang].speakNow); };
+  rec.onresult = e => {
+    let t = "";
+    for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+    heard = t.trim();
+    input.value = heard;        // live preview while you talk
+  };
+  rec.onerror = e => {
+    failed = true;
+    const msg = micError(e.error);
+    notice(msg, !!msg);
+  };
+  rec.onend = () => {
+    listening = false; micBtn.classList.remove("active");
+    if (heard){ notice(""); handleSend(heard); }
+    else { setState("idle"); if (!failed) notice(micError("no-speech"), true); }
+  };
+  try{ rec.start(); }
+  catch(e){ notice(T("Could not start the microphone. Please try again.", "ಮೈಕ್ ಪ್ರಾರಂಭಿಸಲಾಗಲಿಲ್ಲ. ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ."), true); setState("idle"); }
+}
+function stopListening(){ if (rec && listening){ try{ rec.stop(); }catch(e){} } }
+micBtn.addEventListener("click", () => listening ? stopListening() : startListening());
+
+/* =========================================================
+   LANGUAGE, VOICE BUTTON, QUICK CHIPS
+   ========================================================= */
+function buildChips(){
+  chipsEl.innerHTML = "";
+  LANGS[lang].chips.forEach(label => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.textContent = label;
+    b.addEventListener("click", () => handleSend(label));
+    chipsEl.appendChild(b);
+  });
+}
+function applyLang(){
+  const L = LANGS[lang];
+  langBtn.textContent = L.label;
+  input.placeholder = L.placeholder;
+  voiceBtn.textContent = voiceOn ? L.voiceOn : L.voiceOff;
+  voiceBtn.classList.toggle("on", voiceOn);
+  document.documentElement.lang = lang;
+  buildChips();
+  setState(document.body.dataset.state);
+  notice("");
+}
+langBtn.addEventListener("click", () => {
+  stopListening(); stopSpeaking();
+  lang = lang === "en" ? "kn" : "en";
+  save("cheeta_lang", lang);
+  applyLang();
+  addMsg(LANGS[lang].hello, "ai");
+  warnIfNoKannadaVoice();
+});
+voiceBtn.addEventListener("click", () => {
+  voiceOn = !voiceOn;
+  save("cheeta_voice", voiceOn ? "1" : "0");
+  if (!voiceOn) stopSpeaking();
+  applyLang();
+});
+
+/* ---------- Start ---------- */
+applyLang();
+addMsg(T("OFFLINE MODE — math, date and time work. Full AI is not connected yet.",
+         "ಆಫ್‌ಲೈನ್ ಮೋಡ್ — ಲೆಕ್ಕ, ದಿನಾಂಕ, ಸಮಯ ಕೆಲಸ ಮಾಡುತ್ತವೆ. ಪೂರ್ಣ AI ಇನ್ನೂ ಸಂಪರ್ಕಗೊಂಡಿಲ್ಲ."), "sys");
+addMsg(LANGS[lang].hello, "ai");
+setTimeout(warnIfNoKannadaVoice, 1200);   // voices load a moment after the page opens
+</script>
+</body>
+</html>
